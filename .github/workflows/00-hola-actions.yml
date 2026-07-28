@@ -18,7 +18,7 @@ permissions: {}
 jobs:
   saludo:
     name: Saludo
-    runs-on: ubuntu-latests
+    runs-on: ubuntu-latest
     steps:
       - name: Imprimir un mensaje
         run: echo "Hola desde GitHub Actions"
