@@ -1,0 +1,99 @@
+# Pipeline del ejercicio 03, versión sin pruebas.
+#
+# El proyecto de tests está excluido a propósito. Los pasos de artefacto y de
+# resumen siguen ahí porque son el objetivo del ejercicio: el artefacto ahora
+# es el binario compilado en lugar del reporte de pruebas.
+#
+# Esto no debe quedarse así. Ver la nota al final del archivo.
+
+name: 02 - CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'lab/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  PROYECTO: 'src/FinancialUtils/FinancialUtils.csproj'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código al runner
+        uses: actions/checkout@v7
+
+      - name: Instalar el SDK de .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Restauramos y compilamos SOLO la librería, no la solución completa.
+      # Si apuntáramos al .sln, MSBuild también construiría el proyecto de
+      # pruebas y el job fallaría aunque no ejecutemos ningún test.
+      - name: Restaurar dependencias
+        run: dotnet restore ${{ env.PROYECTO }}
+
+      - name: Compilar en Release
+        run: |
+          dotnet build ${{ env.PROYECTO }} \
+            --configuration Release \
+            --no-restore \
+            --output ./salida
+
+      # if: always() hace que el artefacto se suba aunque el paso anterior
+      # haya fallado. Es justo cuando más necesitas ver qué se generó.
+      - name: Publicar el binario compilado
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: binarios
+          path: ./salida
+          retention-days: 5
+          # El default es `warn`, que deja el job en verde con un artefacto
+          # vacío. Preferimos que falle ruidosamente.
+          if-no-files-found: error
+
+      - name: Escribir el resumen del run
+        if: always()
+        run: |
+          DLL="./salida/FinancialUtils.dll"
+          if [ -f "$DLL" ]; then
+            TAMANO=$(du -h "$DLL" | cut -f1)
+            ARCHIVOS=$(find ./salida -type f | wc -l)
+          fi
+          {
+            echo "### Resultado del build"
+            echo ""
+            echo "| Dato | Valor |"
+            echo "|------|-------|"
+            echo "| Ensamblado | \`FinancialUtils.dll\` |"
+            echo "| Tamaño     | ${TAMANO:-no generado} |"
+            echo "| Archivos   | ${ARCHIVOS:-0} |"
+            echo "| Commit     | \`${GITHUB_SHA:0:7}\` |"
+            echo "| Rama       | \`$GITHUB_REF_NAME\` |"
+            echo ""
+            echo "> Las pruebas están deshabilitadas en este pipeline."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# NOTA
+# Un pipeline que compila pero no prueba solo verifica que el código es
+# sintácticamente válido. No dice nada sobre si funciona. Antes de usar esto
+# en el workshop, revisa `soluciones/03-ci.yml`, que es la versión con pruebas.
