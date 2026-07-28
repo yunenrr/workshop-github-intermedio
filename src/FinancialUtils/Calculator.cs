@@ -105,8 +105,8 @@ public static class Calculator
         if (flows.Count == 0)
             throw new ArgumentException("Se requiere al menos un flujo de caja.", nameof(cashFlows));
 
-        decimal npv = 0;
-        for (int t = 0; t < flows.Count; t++)
+        decimal npv = flows[0];
+        for (int t = 1; t < flows.Count; t++)
         {
             npv += flows[t] / (decimal)Math.Pow((double)(1 + discountRate), t);
         }
